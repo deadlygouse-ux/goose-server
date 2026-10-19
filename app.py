@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 port = int(os.environ.get("PORT", 5000))
 
-# Используем /tmp/ для базы данных, чтобы Render мог её создать
 DB_PATH = '/tmp/goose.db'
 
 def init_db():
@@ -17,10 +16,17 @@ def init_db():
 
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.json
-    nick = data.get('nick')
-    cosmetic = data.get('cosmetic', 'capybara')
+    # Пытаемся получить JSON (старый формат)
+    data = request.get_json(silent=True)
     
+    # Если JSON не пришел, пытаемся взять данные из формы (новый формат)
+    if data:
+        nick = data.get('nick')
+        cosmetic = data.get('cosmetic', 'capybara')
+    else:
+        nick = request.form.get('nick')
+        cosmetic = request.form.get('cosmetic', 'capybara')
+
     if not nick:
         return jsonify({"status": "error", "message": "Ник не может быть пустым"}), 400
 
@@ -31,7 +37,7 @@ def register():
         conn.commit()
         return jsonify({"status": "ok", "message": f"Ник {nick} зарегистрирован с {cosmetic}"})
     except sqlite3.IntegrityError:
-        # Если ник уже есть, обновляем ему косметику
+        # Если ник уже есть, обновляем косметику
         c.execute("UPDATE users SET cosmetic = ? WHERE nick = ?", (cosmetic, nick))
         conn.commit()
         return jsonify({"status": "ok", "message": f"Косметика для {nick} обновлена"})
@@ -47,7 +53,6 @@ def get_cosmetics():
     conn.close()
     return jsonify(users)
 
-# Инициализируем базу при старте
 init_db()
 
 if __name__ == '__main__':
